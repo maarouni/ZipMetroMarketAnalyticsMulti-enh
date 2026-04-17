@@ -427,13 +427,21 @@ padding:12px 16px; border-radius:6px; margin-bottom:1rem; font-size:15px;">
     st.markdown("---")
     st.subheader("🎯 Cap Rate Spread Visualizer")
 
-    annual_rent_quick = gross_rent_a * 12
-    noi_quick = annual_rent_quick * 0.60
-    your_cap_quick = (noi_quick / acq_price_a) * 100 if acq_price_a > 0 else 0
+    categories = ["10-Yr Treasury", "Est. Cap Rate Low", "Est. Cap Rate High"]
+    values = [treasury_rate if treasury_rate else 0, cap_low, cap_high]
+    colors = ["#378ADD", "#1D9E75", "#0F6E56"]
 
-    categories = ["10-Yr Treasury", "Est. Cap Rate Low", "Est. Cap Rate High", "Your Cap Rate"]
-    values = [treasury_rate if treasury_rate else 0, cap_low, cap_high, your_cap_quick]
-    colors = ["#378ADD", "#1D9E75", "#0F6E56", "#EF9F27"]
+    # Only add Your Cap Rate bar if investor has entered a deal (address filled in)
+    if address_a and address_a.strip():
+        annual_rent_quick = gross_rent_a * 12
+        noi_quick = annual_rent_quick * 0.60
+        your_cap_quick = (noi_quick / acq_price_a) * 100 if acq_price_a > 0 else 0
+        categories.append("Your Cap Rate")
+        values.append(your_cap_quick)
+        colors.append("#EF9F27")
+    else:
+        st.caption("💡 Enter a property address in the sidebar to add your deal to this chart.")
+
     fig_spread = go.Figure(go.Bar(
         x=categories, y=values, marker_color=colors,
         text=[f"{v:.2f}%" for v in values], textposition="outside"
