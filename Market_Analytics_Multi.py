@@ -456,7 +456,7 @@ padding:12px 16px; border-radius:6px; margin-bottom:1rem; font-size:15px;">
                 help="Current 10-year US Treasury yield from FRED")
     col2.metric("Est. Cap Rate Range", f"{cap_low:.1f}% – {cap_high:.1f}%",
                 help=f"Estimated market cap rate = Treasury + typical {property_type} spread")
-    col3.metric("Treasury Spread", f"{(cap_low + cap_high)/2 - treasury_rate:.0f} bps" if treasury_rate else "N/A",
+    col3.metric("Treasury Spread", f"{((cap_low + cap_high)/2 - treasury_rate)*100:.0f} bps" if treasury_rate else "N/A",
                 help="Cap rate premium over risk-free 10-yr Treasury")
     col4.metric("National Rental Vacancy", f"{vacancy_national:.1f}%" if vacancy_national else "N/A",
                 help=f"As of {vacancy_date}")
