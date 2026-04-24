@@ -3,6 +3,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import numpy as np
 import requests
+import re
 from pathlib import Path
 from calc_engine import calculate_metrics
 
@@ -25,6 +26,7 @@ st.markdown("""
 APP_PASSWORD = st.secrets.get("APP_PASSWORD", "")
 FRED_KEY = st.secrets.get("FRED_API_KEY", "30a709ea0e7f3eb954d3b60d096f925f")
 CENSUS_KEY = st.secrets.get("CENSUS_API_KEY", "c6039957fbd8a5a0445cc17afdff0df926fc70a1")
+SERP_API_KEY = st.secrets.get("SERP_API_KEY", "")
 
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
@@ -35,11 +37,17 @@ if not st.session_state.authenticated:
     st.title("🏢 RealEstate-Analytics.ai")
     st.markdown("#### Multifamily & Market Intelligence")
     if st.session_state.pw_error:
-        st.error("❌ Incorrect password. Please try again.")
+        st.error("❌ Incorrect password or PIN. Please try again.")
         st.session_state.pw_error = False
     password = st.text_input("🔒 Please enter access password", type="password")
+    pin = st.text_input("🔑 Your Access PIN", type="password")
     if st.button("Unlock"):
-        if password == APP_PASSWORD:
+        try:
+            valid_pins = dict(st.secrets["pins"])
+        except Exception:
+            valid_pins = {}
+        pin_values = list(valid_pins.values()) if valid_pins else []
+        if password == APP_PASSWORD and (pin in pin_values or not pin_values):
             st.session_state.authenticated = True
             st.rerun()
         else:
@@ -301,6 +309,52 @@ Estimated Equity: <strong>${equity_now:,.0f}</strong>
 
 
 # ---------------------------------------------------------
+# PROPERTY WEB LOOKUP — SerpAPI
+# ---------------------------------------------------------
+@st.cache_data(show_spinner="Looking up property details from public listings...")
+def lookup_property_web(address: str, serp_api_key: str):
+    if not serp_api_key or not address.strip():
+        return None
+    query = f"{address} apartments units rent"
+    url = "https://serpapi.com/search"
+    params = {"api_key": serp_api_key, "engine": "google", "q": query, "num": 5}
+    try:
+        r = requests.get(url, params=params, timeout=10)
+        if r.status_code == 429:
+            return {"error": "Monthly search limit reached. Enter values manually."}
+        if r.status_code != 200:
+            return None
+        data = r.json()
+        items = data.get("organic_results", [])
+        if not items:
+            return None
+        combined = " ".join([
+            item.get("snippet", "") + " " + item.get("title", "")
+            for item in items
+        ])
+        result = {}
+        unit_patterns = [r'(\d+)\s*[-–]?\s*unit', r'(\d+)\s+units', r'(\d+)\s+apartment']
+        for pattern in unit_patterns:
+            match = re.search(pattern, combined, re.IGNORECASE)
+            if match:
+                units_found = int(match.group(1))
+                if 2 <= units_found <= 5000:
+                    result["suggested_units"] = units_found
+                    break
+        rent_matches = re.findall(r'\$(\d{1,2},?\d{3})', combined)
+        rent_values = [int(m.replace(",", "")) for m in rent_matches if 400 <= int(m.replace(",", "")) <= 15000]
+        if rent_values:
+            result["rent_low"] = min(rent_values)
+            result["rent_high"] = max(rent_values)
+            result["rent_midpoint"] = int(np.mean(rent_values))
+        if items:
+            result["source_title"] = items[0].get("title", "")[:80]
+        return result if result else None
+    except Exception:
+        return None
+
+
+# ---------------------------------------------------------
 # SIDEBAR
 # ---------------------------------------------------------
 st.sidebar.header("🏢 Multifamily Market Explorer")
@@ -314,10 +368,36 @@ st.sidebar.markdown("---")
 st.sidebar.header("🏠 Multifamily Property Analyzer")
 st.sidebar.caption("Enter deal parameters for full analysis")
 
+# --- Property Address Lookup ---
 address_a = st.sidebar.text_input("Street Address", placeholder="e.g. 616 Aleta Pl, Pleasant Hill, CA 94523")
 
+# Run SerpAPI lookup if address entered
+property_lookup = None
+if address_a.strip():
+    if SERP_API_KEY:
+        property_lookup = lookup_property_web(address_a.strip(), SERP_API_KEY)
+    else:
+        st.sidebar.caption("⚠️ Add SERP_API_KEY to secrets to enable address lookup.")
+
+# Show lookup suggestions
+if property_lookup:
+    if "error" in property_lookup:
+        st.sidebar.warning(property_lookup["error"])
+    else:
+        st.sidebar.markdown("**🔍 Public Listing Suggestions** *(verify before using)*")
+        if "rent_low" in property_lookup:
+            st.sidebar.info(
+                f"Rent range: **${property_lookup['rent_low']:,} – ${property_lookup['rent_high']:,}/unit/mo**\n\n"
+                f"Midpoint: **${property_lookup['rent_midpoint']:,}/unit/mo**"
+            )
+        if "source_title" in property_lookup:
+            st.sidebar.caption(f"Source: {property_lookup['source_title']}")
+
+# Pre-fill rent default from lookup if available — units always manual
+default_rent = property_lookup.get("rent_midpoint", 8000) if property_lookup and "rent_midpoint" in property_lookup else 8000
+
 acq_price_a = st.sidebar.number_input("Acquisition Price ($)", value=1500000, step=50000, key="acq_a")
-gross_rent_a = st.sidebar.number_input("Gross Monthly Rent ($)", value=8000, step=500, key="rent_a")
+gross_rent_a = st.sidebar.number_input("Gross Monthly Rent ($)", value=default_rent, step=500, key="rent_a")
 num_units_a = st.sidebar.number_input("Number of Units", value=6, step=1, min_value=1, key="units_a")
 down_pct_a = st.sidebar.number_input("Down Payment (%)", value=25.0, step=1.0, key="down_a")
 int_rate_a = st.sidebar.number_input("Interest Rate (%)", value=7.0, step=0.1, key="rate_a")
