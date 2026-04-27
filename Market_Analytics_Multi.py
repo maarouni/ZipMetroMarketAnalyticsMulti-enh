@@ -122,10 +122,13 @@ def get_mortgage_rate_history(fred_key):
         values = [float(o["value"]) for o in obs]
         return pd.Series(values, index=dates)
     except Exception:
-        # Synthetic fallback — approximate 30yr mortgage rate 2019-2026
-        dates = pd.date_range(start="2019-01-01", end="2026-04-01", freq="W")
-        values = ([3.5]*52 + [3.0]*52 + [3.1]*52 + [5.5]*52 + [6.8]*52 + [7.0]*52 + [6.9]*26)
-        values = values[:len(dates)]
+        # Synthetic fallback — dynamic end date, always length-matched
+        from datetime import date
+        end_date = date.today().strftime("%Y-%m-%d")
+        dates = pd.date_range(start="2019-01-01", end=end_date, freq="W")
+        n = len(dates)
+        base = ([3.5]*52 + [3.0]*52 + [3.1]*52 + [5.5]*52 + [6.8]*52 + [7.0]*52 + [6.9]*52)
+        values = (base * 10)[:n]
         return pd.Series(values, index=dates)
 
 @st.cache_data(show_spinner="Fetching Census rental data...")
