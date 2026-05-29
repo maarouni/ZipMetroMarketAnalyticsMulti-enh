@@ -5,6 +5,9 @@ import numpy as np
 import requests
 import re
 from pathlib import Path
+import smtplib
+import os
+from email.message import EmailMessage
 from calc_engine import calculate_metrics
 
 st.set_page_config(page_title="Multifamily Market Analytics", layout="wide", initial_sidebar_state="expanded")
@@ -611,10 +614,10 @@ if st.button("📤 Send Deal Summary", key="send_email_btn"):
         st.error("❌ Please enter a valid email address.")
     else:
         try:
-            import smtplib
-            from email.message import EmailMessage
-            EMAIL_USER = st.secrets.get("EMAIL_USER", "")
-            EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", "")
+
+
+            EMAIL_USER = st.secrets.get("EMAIL_USER", os.getenv("EMAIL_USER", ""))
+            EMAIL_PASSWORD = st.secrets.get("EMAIL_PASSWORD", os.getenv("EMAIL_PASSWORD", ""))
             if not EMAIL_USER or not EMAIL_PASSWORD:
                 st.error("❌ Email credentials not configured in Streamlit secrets.")
             else:
