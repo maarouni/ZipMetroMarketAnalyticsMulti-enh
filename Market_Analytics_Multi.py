@@ -315,10 +315,10 @@ Estimated Equity: <strong>${equity_now:,.0f}</strong>
 # PROPERTY WEB LOOKUP — SerpAPI
 # ---------------------------------------------------------
 @st.cache_data(show_spinner="Looking up property details from public listings...")
-def lookup_property_web(address: str, serp_api_key: str):
+def lookup_property_web(address: str, serp_api_key: str, zip_code: str = ""):
     if not serp_api_key or not address.strip():
         return None
-    query = f"{address} apartments units rent"
+    query = f"{address} {zip_code} apartments units rent".strip()
     url = "https://serpapi.com/search"
     params = {"api_key": serp_api_key, "engine": "google", "q": query, "num": 5}
     try:
@@ -378,7 +378,7 @@ address_a = st.sidebar.text_input("Street Address", placeholder="e.g. 616 Aleta 
 property_lookup = None
 if address_a.strip():
     if SERP_API_KEY:
-        property_lookup = lookup_property_web(address_a.strip(), SERP_API_KEY)
+        property_lookup = lookup_property_web(address_a.strip(), SERP_API_KEY, zip_input.strip())
     else:
         st.sidebar.caption("⚠️ Add SERP_API_KEY to secrets to enable address lookup.")
 
